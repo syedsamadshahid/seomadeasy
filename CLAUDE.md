@@ -14,31 +14,33 @@ Read `SPEC.md` for full product detail. Read the phase files (`PHASE_1_FOUNDATIO
 
 ---
 
-## Current State (read first)
+## Current State
 
-This repo is **documentation only** right now — these planning docs and nothing else. No `package.json`, no `node_modules`, **no git repository**, no application code.
+**Phase 1 (Foundation) is scaffolded and runs.** Next.js 16 (App Router) + Tailwind v4 + shadcn/ui (Base UI), Prisma 6 wired to Neon via the serverless driver adapter (`lib/db.ts`), an Upstash Redis cache helper (`lib/cache/`), and a hardcoded dev user (`lib/auth/dev-user.ts`) standing in for auth until Phase 7. `pnpm build`, `pnpm lint`, and `pnpm typecheck` are green.
 
-- **Start at Phase 1** (`PHASE_1_FOUNDATION.md`). Its first task is `git init`; Critical Rule #1 forbids file changes without a working git repo, so initialize git before writing any code.
-- Phase files live at the **repo root** (`PHASE_1_FOUNDATION.md` … `PHASE_8_PRICING_LAUNCH.md`), not in a `phases/` subfolder, despite references to "`phases/`" elsewhere.
-- The Phase 1 scaffold (`npx create-next-app@latest`) establishes the toolchain and the commands below.
+- Phase files live at the **repo root** (`PHASE_1_FOUNDATION.md` … `PHASE_8_PRICING_LAUNCH.md`), not in a `phases/` subfolder.
+- Real secrets live in `.env` (gitignored); `.env.example` lists every key grouped by phase. Phase 1 needs `DATABASE_URL` + `DIRECT_URL` (Neon) and `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (Upstash).
+- **Next up: Phase 2** — the Inngest audit pipeline, DataForSEO client, and Cloud Run crawler.
 
 ---
 
 ## Commands
 
-None of these work yet — they arrive with the Phase 1 scaffold (`create-next-app`, Prisma, Inngest). After scaffolding:
+Package manager is **pnpm**.
 
 | Task | Command |
 |---|---|
-| Dev server | `npm run dev` |
-| Production build | `npm run build` |
-| Lint | `npm run lint` |
-| DB migration (dev) | `npx prisma migrate dev` |
-| Regenerate Prisma client | `npx prisma generate` |
-| Browse the database | `npx prisma studio` |
-| Inngest dev server | `npx inngest-cli@latest dev` |
+| Dev server | `pnpm dev` |
+| Production build | `pnpm build` |
+| Lint | `pnpm lint` |
+| Type-check | `pnpm typecheck` |
+| DB migration (dev) | `pnpm db:migrate` |
+| Seed the dev user | `pnpm db:seed` |
+| Browse the database | `pnpm db:studio` |
+| Regenerate Prisma client | `pnpm exec prisma generate` (also runs on `postinstall`) |
+| Cache round-trip check | `pnpm check:cache` |
 
-Pick one package manager when you run `create-next-app` and stay consistent. No test framework is chosen yet — add one when the first deterministic logic lands; the versioned GEO scoring (Phase 3) is the natural first target.
+No test framework is chosen yet — add one when the first deterministic logic lands; the versioned GEO scoring (Phase 3) is the natural first target.
 
 ---
 
@@ -46,9 +48,9 @@ Pick one package manager when you run `create-next-app` and stay consistent. No 
 
 | Layer | Tech |
 |---|---|
-| Framework | Next.js 15 (App Router) + TypeScript |
+| Framework | Next.js 16 (App Router) + TypeScript |
 | Styling | Tailwind CSS + shadcn/ui |
-| Database | Neon PostgreSQL + Prisma ORM |
+| Database | Neon PostgreSQL + Prisma ORM (6.x) |
 | Cache | Upstash Redis |
 | Job pipeline | Inngest (durable steps) |
 | Crawler | Crawlee + Playwright on Cloud Run |

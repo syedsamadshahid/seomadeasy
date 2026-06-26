@@ -1,0 +1,203 @@
+// Vantage — Prisma schema
+// Postgres (Neon). Runtime queries use the Neon serverless driver adapter
+// (see lib/db.ts); migrations use DIRECT_URL. Driver adapters are GA in Prisma 6.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ── Enums ──────────────────────────────────────────────────────
+
+enum Plan {
+  free
+  pro
+  agency
+}
+
+enum AuditStatus {
+  queued
+  running
+  done
+  failed
+}
+
+enum AuditCategory {
+  onpage
+  perf
+  links
+  authority
+  keywords
+  traffic
+  geo
+  content
+}
+
+enum GeoEngine {
+  chatgpt
+  perplexity
+  gemini
+  google_aio
+}
+
+enum Sentiment {
+  positive
+  neutral
+  negative
+}
+
+// ── Models ─────────────────────────────────────────────────────
+
+model User {
+  id               String   @id @default(cuid())
+  firebaseUid      String?  @unique
+  email            String   @unique
+  plan             Plan     @default(free)
+  stripeCustomerId String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  projects          Project[]
+  googleConnections GoogleConnection[]
+  usageEvents       UsageEvent[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  userId      String
+  domain      String
+  displayName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audits Audit[]
+
+  @@unique([userId, domain])
+  @@index([userId])
+}
+
+model GoogleConnection {
+  id                    String   @id @default(cuid())
+  userId                String
+  encryptedRefreshToken String
+  scopes                String[]
+  ga4PropertyId         String?
+  gscSiteUrl            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Audit {
+  id           String      @id @default(cuid())
+  projectId    String
+  status       AuditStatus @default(queued)
+  overallScore Int?
+  costCents    Int         @default(0)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  results     AuditResult[]
+  pages       Page[]
+  keywords    Keyword[]
+  geoRuns     GeoRun[]
+  usageEvents UsageEvent[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+model AuditResult {
+  id        String        @id @default(cuid())
+  auditId   String
+  category  AuditCategory
+  score     Int?
+  payload   Json
+  createdAt DateTime      @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@unique([auditId, category])
+  @@index([auditId])
+}
+
+model Page {
+  id           String   @id @default(cuid())
+  auditId      String
+  url          String
+  estTraffic   Int?
+  onPageIssues Json?
+  perf         Json?
+  createdAt    DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+}
+
+model Keyword {
+  id         String   @id @default(cuid())
+  auditId    String
+  term       String
+  volume     Int?
+  difficulty Int?
+  cpc        Float?
+  position   Int?
+  intent     String?
+  cluster    String?
+  createdAt  DateTime @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([term])
+}
+
+model GeoRun {
+  id               String     @id @default(cuid())
+  auditId          String
+  engine           GeoEngine
+  prompt           String
+  mentioned        Boolean    @default(false)
+  cited            Boolean    @default(false)
+  prominence       Int?
+  sentiment        Sentiment?
+  competitorsNamed Json?
+  engineVersion    String?
+  createdAt        DateTime   @default(now())
+
+  audit Audit @relation(fields: [auditId], references: [id], onDelete: Cascade)
+
+  @@index([auditId])
+  @@index([engine])
+}
+
+model UsageEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  auditId   String?
+  vendor    String
+  endpoint  String
+  units     Int      @default(1)
+  costCents Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  audit Audit? @relation(fields: [auditId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([auditId])
+  @@index([vendor])
+}
