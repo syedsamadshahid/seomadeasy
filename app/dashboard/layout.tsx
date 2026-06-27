@@ -1,11 +1,6 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/dev-user";
-
-const NAV = [
-  { href: "/dashboard", label: "Overview", enabled: true },
-  { href: "/dashboard/projects", label: "Projects", enabled: false },
-  { href: "/dashboard/audits", label: "Audits", enabled: false },
-];
+import { DashboardNav } from "@/components/dashboard/DashboardNav";
 
 export default async function DashboardLayout({
   children,
@@ -20,27 +15,7 @@ export default async function DashboardLayout({
         <Link href="/" className="px-2 py-3 text-lg font-semibold tracking-tight">
           Vantage
         </Link>
-        <nav className="mt-4 flex flex-col gap-1">
-          {NAV.map((item) =>
-            item.enabled ? (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <span
-                key={item.href}
-                className="cursor-not-allowed rounded-md px-3 py-2 text-sm text-muted-foreground/50"
-                title="Coming in a later phase"
-              >
-                {item.label}
-              </span>
-            ),
-          )}
-        </nav>
+        <DashboardNav />
         <div className="mt-auto rounded-md border bg-background p-3 text-xs">
           <div className="font-medium">{user.email}</div>
           <div className="mt-0.5 capitalize text-muted-foreground">
