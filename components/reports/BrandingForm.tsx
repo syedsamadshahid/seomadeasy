@@ -24,7 +24,7 @@ export function BrandingForm({
   async function handleSave() {
     setSaving(true);
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -32,8 +32,10 @@ export function BrandingForm({
           brandColor: canCustomColor ? (color || null) : undefined,
         }),
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
     } finally {
       setSaving(false);
     }

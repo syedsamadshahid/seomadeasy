@@ -24,13 +24,15 @@ export function ScheduleForm({ projectId, initialCadence, initialEnabled }: Prop
   async function handleSave() {
     setSaving(true);
     try {
-      await fetch(`/api/projects/${projectId}/schedule`, {
+      const res = await fetch(`/api/projects/${projectId}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cadence, enabled }),
       });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      }
     } finally {
       setSaving(false);
     }
