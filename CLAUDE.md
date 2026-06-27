@@ -16,11 +16,13 @@ Read `SPEC.md` for full product detail. Read the phase files (`PHASE_1_FOUNDATIO
 
 ## Current State
 
-**Phase 1 (Foundation) is scaffolded and runs.** Next.js 16 (App Router) + Tailwind v4 + shadcn/ui (Base UI), Prisma 6 wired to Neon via the serverless driver adapter (`lib/db.ts`), an Upstash Redis cache helper (`lib/cache/`), and a hardcoded dev user (`lib/auth/dev-user.ts`) standing in for auth until Phase 7. `pnpm build`, `pnpm lint`, and `pnpm typecheck` are green.
+**Phase 2 (Audit + GEO Pipeline) is implemented** on top of the Phase 1 foundation. The core audit engine runs end-to-end behind the hardcoded dev user — Inngest durable pipeline, all vendor clients, the full GEO layer, content generators, and thin API routes are all in place. Auth and billing remain the last phases (7 and 8).
 
 - Phase files live at the **repo root** (`PHASE_1_FOUNDATION.md` … `PHASE_8_PRICING_LAUNCH.md`), not in a `phases/` subfolder.
-- Real secrets live in `.env` (gitignored); `.env.example` lists every key grouped by phase. Phase 1 needs `DATABASE_URL` + `DIRECT_URL` (Neon) and `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (Upstash).
-- **Next up: Phase 2** — the Inngest audit pipeline, DataForSEO client, and Cloud Run crawler.
+- Real secrets live in `.env` (gitignored); `.env.example` lists every key grouped by phase.
+  - Phase 1: `DATABASE_URL`, `DIRECT_URL` (Neon), `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` (Upstash).
+  - Phase 2: `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`, `GOOGLE_PAGESPEED_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `PERPLEXITY_API_KEY`, `ANTHROPIC_API_KEY`.
+- Local pipeline development requires `pnpm dev` **and** the Inngest dev server running alongside (`inngest-cli dev`).
 
 ---
 
@@ -39,8 +41,11 @@ Package manager is **pnpm**.
 | Browse the database | `pnpm db:studio` |
 | Regenerate Prisma client | `pnpm exec prisma generate` (also runs on `postinstall`) |
 | Cache round-trip check | `pnpm check:cache` |
+| Audit pipeline smoke test | `pnpm check:audit` |
+| GEO pipeline end-to-end | `pnpm check:geo` (needs `GEMINI_API_KEY` or `USE_DEEPSEEK_TEST=true`) |
+| Inngest key verification | `pnpm check:inngest` |
 
-No test framework is chosen yet — add one when the first deterministic logic lands; the versioned GEO scoring (Phase 3) is the natural first target.
+No test framework is chosen yet — add one when the first deterministic logic lands; the versioned GEO scoring (`lib/geo/score.ts`) is the natural first target.
 
 ---
 
@@ -65,6 +70,8 @@ No test framework is chosen yet — add one when the first deterministic logic l
 | Hosting | Vercel (app) + Cloud Run (crawler) |
 
 **Never use DeepSeek** — US SMB market trust/compliance issue.
+> **Test-only override (2026-06-27):** DeepSeek is temporarily permitted for local pipeline testing while real LLM keys are not yet set. Set `USE_DEEPSEEK_TEST=true` + `DEEPSEEK_API_KEY` in `.env` to route ALL LLM calls through DeepSeek (`lib/clients/deepseek.ts`). GEO scores produced under this flag are synthetic — DeepSeek is not a real visibility surface. This flag must be removed before production deployment.
+
 **Payments = Stripe, never Razorpay** — target market is US.
 
 ---
@@ -106,6 +113,71 @@ Browser → Next.js (App Router)
 
 ---
 
+## Phase 2 Implementation Map
+
+### Pipeline (`inngest/functions/run-audit.ts`)
+
+Triggered by the `auditRequested` event (`{ auditId }`). Durable `step.run()` stages in order:
+
+`load` → `mark-running` → `resolve-pages` → `on-page` → `perf` → `links` → `authority` → `keywords` → `geo-prompts` → `geo-probe` → `geo-parse` → `content` → `finalize`
+
+`assertUnderCeiling()` (from `lib/audit/cost.ts`) runs before every paid step; 401/403 errors are marked non-retryable.
+
+### Vendor Clients (`lib/clients/`)
+
+Every client follows the same contract: **cache-first** → call vendor → **log usage**.
+
+- `withCache(key, ttlSeconds, fn)` checks Redis; `cacheKey(vendor, endpoint, params)` builds the key as `vendor:endpoint:sha256(params)`.
+- After the vendor call, `logUsage()` writes a `UsageEvent` row and increments `audit.costCents`.
+- `http.ts` → `fetchJson()` with 3-attempt exponential backoff (500ms → 1s → 2s), honours `Retry-After` on 429/5xx.
+- `content.ts` → routes by plan: Agency → Claude Sonnet 4.6, Pro → Gemini Pro 2.0, Free → Gemini Flash.
+
+### GEO Layer (`lib/geo/`)
+
+`prompts.ts` → `probe.ts` → `parse.ts` → `score.ts`
+
+- `probeEngine(engine, prompt, domain, ...)` is the single interface over all 4 engines.
+- Engines gated by plan: Free = Gemini only; Pro = +ChatGPT +Perplexity; Agency = +Google AIO.
+- Scoring versioned via `SCORING_VERSION` constant and `GeoRun.engineVersion` field — increment both when the formula changes to keep trends comparable.
+- Score formula per run: mention(30) + citation(40) + prominence/10×20 + sentiment(±10), capped 0–100.
+
+### Content (`lib/content/`)
+
+`generateFixList` · `generateRewrites` · `generateGeoBrief` — all route through `lib/clients/content.ts`.
+
+### Audit (`lib/audit/`)
+
+`createAudit(userId, domain)` — upserts Project, creates Audit (queued).
+`assembleResults(auditId, userId)` — returns full audit with all Pages, Keywords, AuditResults, GeoRuns.
+`assertUnderCeiling()` — throws `NonRetriableError` if `audit.costCents ≥ 200` ($2.00 hard cap).
+
+### API Routes (`app/api/`)
+
+All handlers only enqueue or read — no business logic.
+
+| Route | Methods |
+|---|---|
+| `/api/audits` | POST (create + enqueue), GET (list) |
+| `/api/audits/[id]` | GET (full results, user-scoped) |
+| `/api/projects` | GET, POST |
+| `/api/projects/[id]` | GET, DELETE |
+| `/api/projects/[id]/trends` | GET (GEO trend history) |
+| `/api/inngest` | GET/POST/PUT (Inngest webhook) |
+
+### Per-Plan Limits
+
+| Limit | Free | Pro | Agency |
+|---|---|---|---|
+| Pages per audit | 3 | 50 | 150 |
+| GEO prompts | 3 | 10 | 20 |
+| GEO engines | Gemini | +ChatGPT, +Perplexity | +Google AIO |
+| Content fixes | 5 | 10 | unlimited |
+| Content rewrites | none | top 5 pages | all pages |
+| Trends retention | 30 days | 90 days | 180 days |
+| Cost ceiling | $2.00 / audit (200¢) | ← same | ← same |
+
+---
+
 ## Directory Convention
 
 ```
@@ -132,8 +204,10 @@ Browser → Next.js (App Router)
 - **AuditResult** — id, auditId, category (onpage|perf|links|authority|keywords|traffic|geo|content), score, payload (JSONB)
 - **Page** — id, auditId, url, estTraffic, onPageIssues (JSONB), perf (JSONB)
 - **Keyword** — id, auditId, term, volume, difficulty, cpc, position, intent, cluster
-- **GeoRun** — id, auditId, engine, prompt, mentioned, cited, prominence, sentiment, competitorsNamed (JSONB), createdAt
+- **GeoRun** — id, auditId, engine (`GeoEngine` enum: chatgpt|perplexity|gemini|google_aio), prompt, mentioned, cited, prominence, sentiment (`Sentiment` enum: positive|neutral|negative), competitorsNamed (JSONB), engineVersion (e.g. "v1"), createdAt
 - **UsageEvent** — id, userId, auditId, vendor, endpoint, units, costCents
+
+`Page` has a unique constraint on `(auditId, url)` to deduplicate crawl results.
 
 ---
 
@@ -165,7 +239,7 @@ Domain-level data is shared across all audits of the same domain — cache aggre
 
 ## Build Order
 
-Follow the `PHASE_*.md` files in sequence. **Authentication (Phase 7) and Pricing/Billing (Phase 8) are LAST.** Build and test the core audit + GEO engine first with a hardcoded dev user; wire auth and payments only once the product works.
+Follow the `PHASE_*.md` files in sequence. Phases 1 and 2 are complete. **Authentication (Phase 7) and Pricing/Billing (Phase 8) are LAST.** Build and test the core audit + GEO engine first with a hardcoded dev user; wire auth and payments only once the product works.
 
 ---
 
