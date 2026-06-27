@@ -4,6 +4,7 @@ import { renderToStream } from "@react-pdf/renderer";
 import { AuditReportPdf } from "@/lib/pdf/AuditReportPdf";
 import { resend, FROM_EMAIL } from "@/lib/email/resend";
 import { reportEmailHtml } from "@/lib/email/report-email";
+import { planFeatures } from "@/lib/plan/features";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -55,6 +56,16 @@ export const scheduledReports = inngest.createFunction(
       const geoScore = latestAudit.results[0]?.score ?? null;
 
       await step.run(`send-report-${schedule.id}`, async () => {
+        // Enforce plan gate — disable schedule if user downgraded
+        const { canSchedule } = planFeatures(schedule.project.user.plan);
+        if (!canSchedule) {
+          await prisma.scheduledReport.update({
+            where: { id: schedule.id },
+            data: { enabled: false },
+          });
+          return;
+        }
+
         // Generate PDF
         const allAuditData = await prisma.audit.findUnique({
           where: { id: auditId },

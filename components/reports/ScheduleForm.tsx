@@ -20,9 +20,11 @@ export function ScheduleForm({ projectId, initialCadence, initialEnabled }: Prop
   const [enabled, setEnabled] = useState(initialEnabled);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleSave() {
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch(`/api/projects/${projectId}/schedule`, {
         method: "POST",
@@ -32,6 +34,8 @@ export function ScheduleForm({ projectId, initialCadence, initialEnabled }: Prop
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+      } else {
+        setSaveError("Save failed. Please try again.");
       }
     } finally {
       setSaving(false);
@@ -68,6 +72,7 @@ export function ScheduleForm({ projectId, initialCadence, initialEnabled }: Prop
       <Button onClick={handleSave} disabled={saving}>
         {saved ? "Saved!" : saving ? "Saving…" : "Save Schedule"}
       </Button>
+      {saveError && <p className="text-sm text-destructive mt-1">{saveError}</p>}
     </div>
   );
 }

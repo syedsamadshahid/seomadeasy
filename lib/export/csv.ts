@@ -1,7 +1,9 @@
 export function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
   const escape = (v: unknown): string => {
     const s = v == null ? "" : String(v);
-    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    // Prefix Excel/Sheets formula triggers to prevent formula injection
+    const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+    return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
   };
   const header = columns.map(escape).join(",");
   const body = rows.map((row) => columns.map((c) => escape(row[c])).join(",")).join("\n");

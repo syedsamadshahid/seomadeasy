@@ -20,9 +20,11 @@ export function BrandingForm({
   const [color, setColor] = useState(initialColor);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleSave() {
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
@@ -35,6 +37,8 @@ export function BrandingForm({
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
+      } else {
+        setSaveError("Save failed. Please try again.");
       }
     } finally {
       setSaving(false);
@@ -74,6 +78,7 @@ export function BrandingForm({
       <Button onClick={handleSave} disabled={saving}>
         {saved ? "Saved!" : saving ? "Saving…" : "Save Branding"}
       </Button>
+      {saveError && <p className="text-sm text-destructive mt-1">{saveError}</p>}
     </div>
   );
 }
