@@ -9,6 +9,10 @@ export type PlanFeatures = {
   shareExpiryDays: number | null; // pro=30, agency=null (permanent)
   canMultiSite: boolean;    // agency only
   canSchedule: boolean;     // agency only
+  canGeoRecheck: boolean;   // pro+agency: weekly GEO re-checks
+  canFullReaudit: boolean;  // agency only: weekly full re-audits
+  websiteLimit: number;         // free=1, pro=3, agency=15
+  monthlyAuditLimit: number | null; // free=2, pro/agency=null (unlimited)
 };
 
 export function planFeatures(plan: Plan): PlanFeatures {
@@ -23,6 +27,10 @@ export function planFeatures(plan: Plan): PlanFeatures {
         shareExpiryDays: null,
         canMultiSite: true,
         canSchedule: true,
+        canGeoRecheck: true,
+        canFullReaudit: true,
+        websiteLimit: 15,
+        monthlyAuditLimit: null,
       };
     case "pro":
       return {
@@ -34,6 +42,10 @@ export function planFeatures(plan: Plan): PlanFeatures {
         shareExpiryDays: 30,
         canMultiSite: false,
         canSchedule: false,
+        canGeoRecheck: true,
+        canFullReaudit: false,
+        websiteLimit: 3,
+        monthlyAuditLimit: null,
       };
     default: // "free"
       return {
@@ -45,6 +57,10 @@ export function planFeatures(plan: Plan): PlanFeatures {
         shareExpiryDays: null,
         canMultiSite: false,
         canSchedule: false,
+        canGeoRecheck: false,
+        canFullReaudit: false,
+        websiteLimit: 1,
+        monthlyAuditLimit: 2,
       };
   }
 }

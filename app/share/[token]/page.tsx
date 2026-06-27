@@ -15,6 +15,10 @@ const PUBLIC_FEATURES: PlanFeatures = {
   shareExpiryDays: null,
   canMultiSite: false,
   canSchedule: false,
+  canGeoRecheck: false,
+  canFullReaudit: false,
+  websiteLimit: 0,
+  monthlyAuditLimit: 0,
 };
 
 export default async function SharePage({
