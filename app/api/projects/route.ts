@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth/dev-user";
+import { assertCanAddWebsite, PlanLimitError } from "@/lib/plan/enforce";
 
 const CreateProjectSchema = z.object({
   domain: z
@@ -48,6 +49,15 @@ export async function POST(req: Request) {
   }
 
   const { domain, displayName } = parsed.data;
+
+  try {
+    await assertCanAddWebsite(user.id, user.plan, domain);
+  } catch (err) {
+    if (err instanceof PlanLimitError) {
+      return NextResponse.json({ error: err.message, upgrade: true }, { status: 402 });
+    }
+    throw err;
+  }
 
   const project = await prisma.project.upsert({
     where: { userId_domain: { userId: user.id, domain } },

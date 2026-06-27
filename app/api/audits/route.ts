@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth/dev-user";
 import { createAudit } from "@/lib/audit/create";
 import { inngest, auditRequested } from "@/inngest/client";
+import { assertCanRunAudit, PlanLimitError } from "@/lib/plan/enforce";
 
 const bodySchema = z.object({
   domain: z
@@ -27,6 +28,16 @@ export async function POST(req: NextRequest) {
   }
 
   const { domain } = parsed.data;
+
+  try {
+    await assertCanRunAudit(user.id, user.plan);
+  } catch (err) {
+    if (err instanceof PlanLimitError) {
+      return NextResponse.json({ error: err.message, upgrade: true }, { status: 402 });
+    }
+    throw err;
+  }
+
   const { auditId } = await createAudit(user.id, domain);
 
   await inngest.send(auditRequested.create({ auditId }));
