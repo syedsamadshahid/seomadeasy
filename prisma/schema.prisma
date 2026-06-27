@@ -62,9 +62,11 @@ model User {
   id               String   @id @default(cuid())
   firebaseUid      String?  @unique
   email            String   @unique
-  plan             Plan     @default(free)
-  stripeCustomerId String?  @unique
-  createdAt        DateTime @default(now())
+  plan                 Plan     @default(free)
+  stripeCustomerId     String?  @unique
+  stripeSubscriptionId String?  @unique
+  planRenewsAt         DateTime?
+  createdAt            DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   projects          Project[]
