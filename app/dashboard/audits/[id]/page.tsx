@@ -19,7 +19,7 @@ export default async function AuditPage({
 
   if (audit.status === "queued" || audit.status === "running") {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-10">
+      <div className="p-8 bg-background min-h-full">
         <AuditProgress auditId={auditId} initialStatus={audit.status} />
       </div>
     );
@@ -27,15 +27,17 @@ export default async function AuditPage({
 
   if (audit.status === "failed") {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <p className="text-destructive">Audit failed. Please try again.</p>
+      <div className="p-8 bg-background min-h-full">
+        <AuditProgress auditId={auditId} initialStatus="failed" />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      <AuditReport audit={audit} features={features} auditId={auditId} />
+    <div className="p-8 bg-background min-h-full">
+      <div className="max-w-[1200px] mx-auto">
+        <AuditReport audit={audit} features={features} auditId={auditId} />
+      </div>
     </div>
   );
 }
