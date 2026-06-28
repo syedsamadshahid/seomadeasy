@@ -7,10 +7,7 @@ import { checkBrokenLinks } from "@/lib/audit/links";
 import { fetchPageSpeed } from "@/lib/clients/pagespeed";
 import { assertUnderCeiling, pageCapForPlan } from "@/lib/audit/cost";
 import { HttpError } from "@/lib/clients/http";
-import { generateGeoPrompts } from "@/lib/geo/prompts";
-import { probeEngine, enginesForPlan } from "@/lib/geo/probe";
-import { parseAndStoreGeoRun } from "@/lib/geo/parse";
-import { computeGeoScore, topCompetitors } from "@/lib/geo/score";
+import { runGeoForAudit } from "@/lib/geo/run";
 import { generateFixList } from "@/lib/content/fixes";
 import { generateRewrites } from "@/lib/content/rewrites";
 import { generateGeoBrief } from "@/lib/content/geo-brief";
@@ -200,50 +197,15 @@ export const runAudit = inngest.createFunction(
         });
       });
 
-      // ── Step 8: GEO — generate prompts ────────────────────────────────────
-      const geoPrompts = await step.run("geo-prompts", async () => {
+      // ── Steps 8–9: GEO — prompts, probe engines, parse, score ────────────────
+      await step.run("geo-probe", async () => {
         await assertUnderCeiling(auditId);
         const kws = await prisma.keyword.findMany({
           where: { auditId },
           select: { term: true },
           take: 20,
         });
-        const keywords = kws.map((k) => k.term);
-        return generateGeoPrompts(domain, keywords, plan, userId, auditId);
-      });
-
-      // ── Step 9: GEO — probe engines, parse, score ──────────────────────────
-      await step.run("geo-probe", async () => {
-        await assertUnderCeiling(auditId);
-        const engines = enginesForPlan(plan);
-
-        // Probe all engines × prompts in parallel, bounded by Inngest's execution
-        const probeResults = await Promise.all(
-          geoPrompts.flatMap((prompt) =>
-            engines.map((engine) =>
-              probeEngine(engine, prompt, domain, userId, auditId).catch(() => null),
-            ),
-          ),
-        );
-
-        // Parse each successful probe response and write GeoRun rows
-        await Promise.all(
-          probeResults
-            .filter((r): r is NonNullable<typeof r> => r !== null && r.response.length > 0)
-            .map((r) =>
-              parseAndStoreGeoRun(auditId, r.engine, r.prompt, r.response, r.citations, domain, userId),
-            ),
-        );
-
-        const geoScore = await computeGeoScore(auditId);
-        const competitors = await topCompetitors(auditId);
-        const payload = toJson({ score: geoScore, competitors, enginesProbed: engines });
-
-        await prisma.auditResult.upsert({
-          where: { auditId_category: { auditId, category: "geo" } },
-          create: { auditId, category: "geo", score: geoScore, payload },
-          update: { score: geoScore, payload },
-        });
+        await runGeoForAudit({ auditId, domain, plan, userId, keywords: kws.map((k) => k.term) });
       });
 
       // ── Step 10: Content generation ────────────────────────────────────────

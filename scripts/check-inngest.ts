@@ -1,5 +1,6 @@
 // Verifies Inngest env vars are set and the event key is accepted by Inngest's API.
 // Run: pnpm check:inngest
+export {};
 
 async function main() {
   const eventKey = process.env.INNGEST_EVENT_KEY;

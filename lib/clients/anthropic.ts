@@ -3,6 +3,7 @@ import { logUsage } from "@/lib/usage";
 import { fetchJson } from "@/lib/clients/http";
 import { isLlmTestMode } from "@/lib/clients/llm-test-mode";
 import { deepseekChat } from "@/lib/clients/deepseek";
+import { withRateLimit } from "@/lib/clients/ratelimit";
 
 const BASE_URL = "https://api.anthropic.com/v1";
 const MODEL = "claude-sonnet-4-6";
@@ -37,33 +38,35 @@ export async function claudeGenerate(
   }
 
   return withCache<string>(cacheKeyStr, ttlSeconds, async () => {
-    const res = await fetchJson<AnthropicResponse>(`${BASE_URL}/messages`, {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey(),
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
-      }),
+    return withRateLimit("anthropic", async () => {
+      const res = await fetchJson<AnthropicResponse>(`${BASE_URL}/messages`, {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey(),
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          max_tokens: 4096,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      const text = res.content.find((c) => c.type === "text")?.text ?? "";
+      const inputTokens = res.usage?.input_tokens ?? 0;
+      const outputTokens = res.usage?.output_tokens ?? 0;
+
+      await logUsage({
+        userId,
+        auditId,
+        vendor: "anthropic",
+        endpoint: "messages",
+        units: inputTokens + outputTokens,
+        costCents: tokensToCents(inputTokens, outputTokens),
+      });
+
+      return text;
     });
-
-    const text = res.content.find((c) => c.type === "text")?.text ?? "";
-    const inputTokens = res.usage?.input_tokens ?? 0;
-    const outputTokens = res.usage?.output_tokens ?? 0;
-
-    await logUsage({
-      userId,
-      auditId,
-      vendor: "anthropic",
-      endpoint: "messages",
-      units: inputTokens + outputTokens,
-      costCents: tokensToCents(inputTokens, outputTokens),
-    });
-
-    return text;
   });
 }

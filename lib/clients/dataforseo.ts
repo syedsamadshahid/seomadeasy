@@ -1,6 +1,7 @@
 import { cacheKey, withCache } from "@/lib/cache";
 import { logUsage } from "@/lib/usage";
 import { fetchJson } from "@/lib/clients/http";
+import { withRateLimit } from "@/lib/clients/ratelimit";
 
 // TTLs per CLAUDE.md caching spec
 const TTL = {
@@ -24,14 +25,16 @@ function authHeader(): string {
 }
 
 async function dfsPost<T>(path: string, body: unknown): Promise<T> {
-  return fetchJson<T>(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      Authorization: authHeader(),
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  return withRateLimit("dataforseo", () =>
+    fetchJson<T>(`${BASE_URL}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    }),
+  );
 }
 
 // ── Normalized types returned by this client ─────────────────────────────────

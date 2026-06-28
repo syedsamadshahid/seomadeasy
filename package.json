@@ -17,6 +17,7 @@
     "check:inngest": "tsx --env-file=.env scripts/check-inngest.ts",
     "check:geo": "tsx --env-file=.env scripts/check-geo.ts",
     "check:content": "tsx --env-file=.env scripts/check-content.ts",
+    "check:costs": "tsx --env-file=.env scripts/verify-costs.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

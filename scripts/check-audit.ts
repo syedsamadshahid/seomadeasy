@@ -2,6 +2,7 @@
 // Validates that DB helpers and the DataForSEO client types work end-to-end
 // without calling any real external APIs.
 // Run with: pnpm check:audit
+export {};
 
 import { prisma } from "../lib/db";
 import { createAudit, assembleResults } from "../lib/audit/create";

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { redis } from "./redis";
+import { trackCacheHit, trackCacheMiss } from "./metrics";
 
 // First-class caching layer (CLAUDE.md Critical Rule #2). Every paid vendor /
 // LLM call in later phases checks Redis first via these helpers.
@@ -39,9 +40,13 @@ export async function withCache<T>(
   ttlSeconds: number,
   fn: () => Promise<T>,
 ): Promise<T> {
+  const vendor = key.split(":")[0] ?? "unknown";
   const cached = await getCached<T>(key);
-  if (cached !== null) return cached;
-
+  if (cached !== null) {
+    trackCacheHit(vendor);
+    return cached;
+  }
+  trackCacheMiss(vendor);
   const fresh = await fn();
   await setCached(key, fresh, ttlSeconds);
   return fresh;

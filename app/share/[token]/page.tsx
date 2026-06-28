@@ -19,6 +19,13 @@ const PUBLIC_FEATURES: PlanFeatures = {
   canFullReaudit: false,
   websiteLimit: 0,
   monthlyAuditLimit: 0,
+  pagesPerAudit: 0,
+  pagesPoolPerMonth: 0,
+  keywordsTracked: 0,
+  aiEngines: 0,
+  aiPromptsPerAudit: 0,
+  contentRecModel: "gemini-flash",
+  canCompetitorTracking: false,
 };
 
 export default async function SharePage({

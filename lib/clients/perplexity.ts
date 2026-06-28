@@ -3,6 +3,7 @@ import { logUsage } from "@/lib/usage";
 import { fetchJson } from "@/lib/clients/http";
 import { isLlmTestMode } from "@/lib/clients/llm-test-mode";
 import { deepseekChat } from "@/lib/clients/deepseek";
+import { withRateLimit } from "@/lib/clients/ratelimit";
 
 const BASE_URL = "https://api.perplexity.ai";
 // Base Sonar — not Sonar Pro (cost optimization per CLAUDE.md)
@@ -44,33 +45,35 @@ export async function perplexitySonar(
   }
 
   return withCache<PerplexityResult>(cacheKeyStr, 24 * 60 * 60, async () => {
-    const res = await fetchJson<PerplexityResponse>(`${BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 1200,
-      }),
+    return withRateLimit("perplexity", async () => {
+      const res = await fetchJson<PerplexityResponse>(`${BASE_URL}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 1200,
+        }),
+      });
+
+      const text = res.choices[0]?.message?.content ?? "";
+      const citations = res.citations ?? [];
+      const tokens =
+        (res.usage?.prompt_tokens ?? 0) + (res.usage?.completion_tokens ?? 0);
+
+      await logUsage({
+        userId,
+        auditId,
+        vendor: "perplexity",
+        endpoint: "chat/completions",
+        units: tokens,
+        costCents: tokensToCents(tokens),
+      });
+
+      return { text, citations };
     });
-
-    const text = res.choices[0]?.message?.content ?? "";
-    const citations = res.citations ?? [];
-    const tokens =
-      (res.usage?.prompt_tokens ?? 0) + (res.usage?.completion_tokens ?? 0);
-
-    await logUsage({
-      userId,
-      auditId,
-      vendor: "perplexity",
-      endpoint: "chat/completions",
-      units: tokens,
-      costCents: tokensToCents(tokens),
-    });
-
-    return { text, citations };
   });
 }

@@ -3,6 +3,7 @@ import { logUsage } from "@/lib/usage";
 import { fetchJson } from "@/lib/clients/http";
 import { isLlmTestMode } from "@/lib/clients/llm-test-mode";
 import { deepseekChat } from "@/lib/clients/deepseek";
+import { withRateLimit } from "@/lib/clients/ratelimit";
 
 const BASE_URL = "https://generativelanguage.googleapis.com/v1beta";
 const MODEL = "gemini-2.0-flash";
@@ -82,15 +83,17 @@ export async function geminiGenerate(
   }
 
   return withCache<string>(key, ttl, async () => {
-    const { text, tokens } = await callGemini(prompt, options.systemInstruction, jsonMode, model);
-    await logUsage({
-      userId,
-      auditId,
-      vendor: "gemini",
-      endpoint: "generateContent",
-      units: tokens,
-      costCents: tokensToCents(tokens),
+    return withRateLimit("gemini", async () => {
+      const { text, tokens } = await callGemini(prompt, options.systemInstruction, jsonMode, model);
+      await logUsage({
+        userId,
+        auditId,
+        vendor: "gemini",
+        endpoint: "generateContent",
+        units: tokens,
+        costCents: tokensToCents(tokens),
+      });
+      return text;
     });
-    return text;
   });
 }
