@@ -92,6 +92,10 @@ export async function POST(req: NextRequest) {
         );
         break;
       }
+      // invoice.payment_failed is intentionally not handled here: Stripe's default
+      // dunning retries and eventually fires customer.subscription.deleted, which
+      // downgrades the user to free. Handling payment_failed separately would require
+      // checking subscription.status (not invoice.status) and risks double-downgrade.
     }
   } catch (err) {
     console.error("[stripe/webhook] handler error", err);
