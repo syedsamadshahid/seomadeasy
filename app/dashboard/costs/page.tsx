@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function BillingRedirect() {
+export default function CostsRedirect() {
   redirect("/dashboard/settings?tab=billing");
 }

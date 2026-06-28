@@ -3,11 +3,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UpgradePrompt } from "@/components/billing/UpgradePrompt";
 
-export function NewAuditForm() {
+type Props = {
+  onSuccess?: () => void;
+};
+
+export function NewAuditForm({ onSuccess }: Props = {}) {
   const [domain, setDomain] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -22,10 +28,16 @@ export function NewAuditForm() {
         body: JSON.stringify({ domain: domain.trim() }),
       });
       if (!res.ok) {
-        setError("Failed to start audit. Please try again.");
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 402 && data.upgrade) {
+          setUpgradeMsg(data.error ?? "You've reached your plan limit.");
+          return;
+        }
+        setError(data.error ?? "Failed to start audit. Please try again.");
         return;
       }
       const { auditId } = await res.json();
+      onSuccess?.();
       router.push(`/dashboard/audits/${auditId}`);
     } finally {
       setLoading(false);
@@ -47,6 +59,11 @@ export function NewAuditForm() {
         </Button>
       </form>
       {error && <p className="text-sm text-destructive mt-1">{error}</p>}
+      <UpgradePrompt
+        open={upgradeMsg !== null}
+        onClose={() => setUpgradeMsg(null)}
+        message={upgradeMsg ?? ""}
+      />
     </>
   );
 }
