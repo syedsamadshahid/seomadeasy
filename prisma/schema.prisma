@@ -62,6 +62,10 @@ model User {
   id               String   @id @default(cuid())
   firebaseUid      String?  @unique
   email            String   @unique
+  name             String?
+  jobTitle         String?
+  timezone         String?
+  photoUrl         String?
   plan                 Plan     @default(free)
   stripeCustomerId     String?  @unique
   stripeSubscriptionId String?  @unique

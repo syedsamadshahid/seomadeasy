@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth/dev-user";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ProfileForm } from "@/components/dashboard/ProfileForm";
 
 type Tab = "profile" | "sites" | "billing" | "integrations";
 
@@ -54,20 +55,13 @@ export default async function SettingsPage({
           {tab === "profile" && (
             <div className="space-y-6">
               <h2 className="text-lg font-black text-on-background">Profile</h2>
-              <div className="flex items-center gap-4">
-                <div className="size-16 rounded-full bg-primary-light text-primary flex items-center justify-center text-2xl font-black border border-primary-fixed-dim/20">
-                  {user.email.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-bold text-on-background">{user.email}</p>
-                  <p className="text-sm text-text-secondary capitalize">{user.plan} Plan</p>
-                </div>
-              </div>
-              <div className="pt-4 border-t border-border">
-                <p className="text-sm text-text-secondary">
-                  Profile editing (name, job title, timezone, photo) will be available in an upcoming update.
-                </p>
-              </div>
+              <ProfileForm
+                name={(user as Record<string, unknown>).name as string | null ?? null}
+                jobTitle={(user as Record<string, unknown>).jobTitle as string | null ?? null}
+                timezone={(user as Record<string, unknown>).timezone as string | null ?? null}
+                email={user.email}
+                plan={user.plan}
+              />
             </div>
           )}
 

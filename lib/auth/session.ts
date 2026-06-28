@@ -5,17 +5,23 @@ import { prisma } from "@/lib/db";
 import type { User } from "@prisma/client";
 
 // Fallback used when Firebase env vars are not configured (local dev without credentials).
-const DEV_FALLBACK: User = {
+// Fields added by migration 20260628120000_add_user_profile_fields are cast here
+// until `pnpm exec prisma generate` is re-run after stopping the dev server.
+const DEV_FALLBACK = {
   id: process.env.DEV_USER_ID ?? "dev-user",
   firebaseUid: null,
   email: "dev@vantage.local",
-  plan: "agency",
+  name: "Dev User",
+  jobTitle: null,
+  timezone: null,
+  photoUrl: null,
+  plan: "agency" as const,
   stripeCustomerId: null,
   stripeSubscriptionId: null,
   planRenewsAt: null,
   createdAt: new Date(0),
   updatedAt: new Date(0),
-};
+} as unknown as User;
 
 function isFirebaseConfigured() {
   return !!(
