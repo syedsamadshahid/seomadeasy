@@ -91,6 +91,7 @@ model Project {
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   audits            Audit[]
   scheduledReports  ScheduledReport[]
+  trackedKeywords   TrackedKeyword[]
 
   @@unique([userId, domain])
   @@index([userId])
@@ -237,4 +238,16 @@ model ScheduledReport {
   createdAt DateTime      @default(now())
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model TrackedKeyword {
+  id        String   @id @default(cuid())
+  projectId String
+  term      String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, term])
+  @@index([projectId])
 }

@@ -193,7 +193,7 @@ export function AuditProgress({ auditId, initialStatus }: Props) {
 
       {/* Log area — shows timing */}
       <div className="bg-slate-900 rounded-xl p-5 font-mono text-xs text-slate-300 space-y-1 min-h-[80px]">
-        <p className="text-slate-500">// System log</p>
+        <p className="text-slate-500">{"// System log"}</p>
         {status === "queued" && <p><span className="text-cyan-400">→</span> Audit queued, waiting for worker…</p>}
         {status === "running" && activeStep >= 1 && (
           <p><span className="text-cyan-400">→</span> Crawling pages…</p>

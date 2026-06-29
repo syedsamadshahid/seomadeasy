@@ -1,6 +1,5 @@
 import { getCurrentUser } from "@/lib/auth/dev-user";
 import { prisma } from "@/lib/db";
-import { EngineCard } from "@/components/ui/EngineCard";
 import Link from "next/link";
 
 const ENGINES = ["chatgpt", "perplexity", "gemini", "google_aio"] as const;

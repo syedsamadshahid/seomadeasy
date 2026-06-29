@@ -4,6 +4,10 @@ import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { SignOutButton } from "@/components/auth/SignOutButton";
 import { NewAuditDialog } from "@/components/dashboard/NewAuditDialog";
 
+// Dashboard routes are per-user and authenticated — never statically prerender
+// them at build time (the DB is not reachable during prerender).
+export const dynamic = "force-dynamic";
+
 export default async function DashboardLayout({
   children,
 }: {

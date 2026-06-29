@@ -3,9 +3,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { buttonVariants } from "@/components/ui/button";
-
-const ENGINES = ["ChatGPT", "Claude", "Gemini", "Perplexity"];
 
 const TRUSTED_LOGOS = [
   {

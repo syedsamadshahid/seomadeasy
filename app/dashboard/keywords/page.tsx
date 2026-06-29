@@ -1,9 +1,23 @@
 import { getCurrentUser } from "@/lib/auth/dev-user";
 import { prisma } from "@/lib/db";
 import Link from "next/link";
+import { TrackedKeywords } from "@/components/dashboard/TrackedKeywords";
 
 export default async function KeywordsPage() {
   const user = await getCurrentUser();
+
+  const [projects, trackedKeywords] = await Promise.all([
+    prisma.project.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, domain: true, displayName: true },
+    }),
+    prisma.trackedKeyword.findMany({
+      where: { project: { userId: user.id } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, term: true, project: { select: { domain: true } } },
+    }),
+  ]);
 
   const keywords = await prisma.keyword.findMany({
     where: { audit: { project: { userId: user.id } } },
@@ -30,6 +44,9 @@ export default async function KeywordsPage() {
           <h1 className="text-2xl font-black text-on-background tracking-tight">Keywords</h1>
           <p className="text-text-secondary text-sm mt-1">Keyword rankings across all audited sites.</p>
         </div>
+
+        {/* Manually tracked keywords */}
+        <TrackedKeywords projects={projects} tracked={trackedKeywords} />
 
         {/* KPI row */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

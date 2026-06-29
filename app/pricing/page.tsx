@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
 
 const FAQ_ITEMS = [
   {
