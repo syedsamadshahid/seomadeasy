@@ -1,0 +1,97 @@
+runtime: nodejs20
+
+runConfig:
+  maxInstances: 2
+  minInstances: 0
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 1024
+
+env:
+  # ── Public (non-secret) ──────────────────────────────────────────────────
+  - variable: DEV_USER_ID
+    value: mvp-user
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # ── Secrets (stored in Google Cloud Secret Manager) ───────────────────────
+  # Run: firebase apphosting:secrets:set <VARIABLE> for each one below.
+
+  - variable: NEXT_PUBLIC_APP_URL
+    secret: NEXT_PUBLIC_APP_URL
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Database (needed at BUILD time for prisma migrate deploy)
+  - variable: DATABASE_URL
+    secret: DATABASE_URL
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: DIRECT_URL
+    secret: DIRECT_URL
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # Cache
+  - variable: UPSTASH_REDIS_REST_URL
+    secret: UPSTASH_REDIS_REST_URL
+    availability:
+      - RUNTIME
+
+  - variable: UPSTASH_REDIS_REST_TOKEN
+    secret: UPSTASH_REDIS_REST_TOKEN
+    availability:
+      - RUNTIME
+
+  # Job pipeline
+  - variable: INNGEST_EVENT_KEY
+    secret: INNGEST_EVENT_KEY
+    availability:
+      - RUNTIME
+
+  - variable: INNGEST_SIGNING_KEY
+    secret: INNGEST_SIGNING_KEY
+    availability:
+      - RUNTIME
+
+  # Vendor APIs
+  - variable: DATAFORSEO_LOGIN
+    secret: DATAFORSEO_LOGIN
+    availability:
+      - RUNTIME
+
+  - variable: DATAFORSEO_PASSWORD
+    secret: DATAFORSEO_PASSWORD
+    availability:
+      - RUNTIME
+
+  - variable: GOOGLE_PAGESPEED_API_KEY
+    secret: GOOGLE_PAGESPEED_API_KEY
+    availability:
+      - RUNTIME
+
+  # LLMs
+  - variable: GEMINI_API_KEY
+    secret: GEMINI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: OPENAI_API_KEY
+    secret: OPENAI_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: PERPLEXITY_API_KEY
+    secret: PERPLEXITY_API_KEY
+    availability:
+      - RUNTIME
+
+  - variable: ANTHROPIC_API_KEY
+    secret: ANTHROPIC_API_KEY
+    availability:
+      - RUNTIME
