@@ -48,3 +48,17 @@ type IssuePage = {
 export function issuesCsv(pages: IssuePage[]): string {
   return toCsv(pages as Record<string, unknown>[], ["url", "issues"]);
 }
+
+type FixRow = {
+  category: string;
+  impact: string;
+  issue: string;
+  why: string;
+  howToFix: string;
+};
+
+export function fixesCsv(fixes: FixRow[]): string {
+  return toCsv(fixes as Record<string, unknown>[], [
+    "category", "impact", "issue", "why", "howToFix",
+  ]);
+}

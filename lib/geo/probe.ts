@@ -29,7 +29,10 @@ export async function probeEngine(
   userId: string,
   auditId: string,
 ): Promise<ProbeResult> {
-  const key = cacheKey("geo", `probe-${engine}`, { prompt, domain });
+  // The AI's answer to a prompt does not depend on which domain we're measuring
+  // (prompts never name the domain), so cache by (engine, prompt) only. This lets
+  // competitor audits that reuse the same shared prompts hit the cache for free.
+  const key = cacheKey("geo", `probe-${engine}`, { prompt });
 
   switch (engine) {
     case "chatgpt": {

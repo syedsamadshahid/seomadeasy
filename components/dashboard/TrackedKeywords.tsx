@@ -88,7 +88,7 @@ export function TrackedKeywords({ projects, tracked }: Props) {
           </p>
         ) : (
           <form onSubmit={handleAdd} className="flex flex-wrap items-center gap-2">
-            <Select value={projectId} onValueChange={setProjectId}>
+            <Select value={projectId} onValueChange={(v) => setProjectId(v ?? "")}>
               <SelectTrigger className="w-44">
                 <SelectValue placeholder="Select site" />
               </SelectTrigger>

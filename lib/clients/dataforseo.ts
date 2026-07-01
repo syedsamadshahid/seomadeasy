@@ -75,6 +75,7 @@ export interface KeywordMetrics {
   cpc: number;
   intent: string | null;
   topUrl: string | null;
+  position: number | null;
 }
 
 // ── Raw DataForSEO shapes (internal) ─────────────────────────────────────────
@@ -89,9 +90,15 @@ interface DfsResponse<TResult> {
   tasks: DfsTask<TResult>[];
 }
 
-interface DfsKeywordsForSiteItem {
-  page_from?: string;
-  keyword?: string;
+// DataForSEO Labs endpoints wrap their rows in a single container object at
+// result[0], with the real rows under `.items` — not directly in `result[]`.
+interface DfsLabsContainer<TItem> {
+  total_count?: number;
+  items?: TItem[];
+}
+
+interface DfsRelevantPageItem {
+  page_address?: string;
   metrics?: { organic?: { etv?: number } };
 }
 
@@ -111,26 +118,24 @@ interface DfsOnPageItem {
 }
 
 interface DfsBacklinkItem {
-  total?: number;
-  referring_domains?: number;
-}
-
-interface DfsDomainRankItem {
   rank?: number;
   backlinks?: number;
   referring_domains?: number;
 }
 
-interface DfsKeywordItem {
-  keyword?: string;
-  keyword_info?: {
-    search_volume?: number;
-    competition_level?: string;
-    cpc?: number;
+interface DfsRankedKeywordItem {
+  keyword_data?: {
+    keyword?: string;
+    keyword_info?: {
+      search_volume?: number;
+      cpc?: number;
+    };
+    keyword_properties?: { keyword_difficulty?: number };
+    search_intent_info?: { main_intent?: string };
   };
-  keyword_difficulty?: number;
-  serp_info?: { serp_item_types?: string[] };
-  ranked_serp_element?: { serp_item?: { relative_url?: string } };
+  ranked_serp_element?: {
+    serp_item?: { relative_url?: string; rank_absolute?: number };
+  };
 }
 
 // ── Step 1: Resolve top pages for a domain ───────────────────────────────────
@@ -141,22 +146,22 @@ export async function rankedPages(
   auditId: string,
   { limit = 20 }: { limit?: number } = {},
 ): Promise<RankedPage[]> {
-  const key = cacheKey("dataforseo", "keywords_for_site", { domain, limit });
+  const key = cacheKey("dataforseo", "relevant_pages", { domain, limit });
 
   return withCache(key, TTL.rankedPages, async () => {
-    type Resp = DfsResponse<DfsKeywordsForSiteItem>;
-    const raw = await dfsPost<Resp>("/v3/dataforseo_labs/google/keywords_for_site/live", [
+    type Resp = DfsResponse<DfsLabsContainer<DfsRelevantPageItem>>;
+    const raw = await dfsPost<Resp>("/v3/dataforseo_labs/google/relevant_pages/live", [
       { target: domain, language_code: "en", location_code: 2840, limit: 1000 },
     ]);
 
     const cost = Math.ceil((raw.tasks?.[0]?.cost ?? 0) * 100);
-    await logUsage({ userId, auditId, vendor: "dataforseo", endpoint: "keywords_for_site", costCents: cost });
+    await logUsage({ userId, auditId, vendor: "dataforseo", endpoint: "relevant_pages", costCents: cost });
 
-    const items = raw.tasks?.[0]?.result ?? [];
+    const items = raw.tasks?.[0]?.result?.[0]?.items ?? [];
     const traffic = new Map<string, number>();
 
     for (const item of items) {
-      const url = item.page_from;
+      const url = item.page_address;
       if (!url) continue;
       const etv = item.metrics?.organic?.etv ?? 0;
       traffic.set(url, (traffic.get(url) ?? 0) + etv);
@@ -228,7 +233,7 @@ export async function backlinks(
   return withCache(key, TTL.backlinks, async () => {
     type Resp = DfsResponse<DfsBacklinkItem>;
     const raw = await dfsPost<Resp>("/v3/backlinks/summary/live", [
-      { target: domain, target_type: "site_with_subdomains" },
+      { target: domain, target_type: "domain" },
     ]);
 
     const cost = Math.ceil((raw.tasks?.[0]?.cost ?? 0) * 100);
@@ -236,9 +241,10 @@ export async function backlinks(
 
     const item = raw.tasks?.[0]?.result?.[0] ?? {};
     return {
-      totalBacklinks: item.total ?? 0,
+      totalBacklinks: item.backlinks ?? 0,
       referringDomains: item.referring_domains ?? 0,
-      domainAuthority: 0,
+      // DataForSEO domain "rank" is 0–1000; used as an authority proxy.
+      domainAuthority: item.rank ?? 0,
     };
   });
 }
@@ -253,9 +259,11 @@ export async function domainRank(
   const key = cacheKey("dataforseo", "domain_rank", { domain });
 
   return withCache(key, TTL.domainRank, async () => {
-    type Resp = DfsResponse<DfsDomainRankItem>;
-    const raw = await dfsPost<Resp>("/v3/dataforseo_labs/google/domain_rank_overview/live", [
-      { target: domain, language_code: "en", location_code: 2840 },
+    // domain_rank_overview returns organic traffic metrics but no domain-rank
+    // score; the 0–1000 domain rank lives on the backlinks summary endpoint.
+    type Resp = DfsResponse<DfsBacklinkItem>;
+    const raw = await dfsPost<Resp>("/v3/backlinks/summary/live", [
+      { target: domain, target_type: "domain" },
     ]);
 
     const cost = Math.ceil((raw.tasks?.[0]?.cost ?? 0) * 100);
@@ -334,22 +342,27 @@ export async function keywordData(
   const key = cacheKey("dataforseo", "ranked_keywords", { domain, limit });
 
   return withCache(key, TTL.keywords, async () => {
-    type Resp = DfsResponse<DfsKeywordItem>;
+    type Resp = DfsResponse<DfsLabsContainer<DfsRankedKeywordItem>>;
     const raw = await dfsPost<Resp>("/v3/dataforseo_labs/google/ranked_keywords/live", [
-      { target: `https://${domain}/`, language_code: "en", location_code: 2840, limit },
+      { target: domain, language_code: "en", location_code: 2840, limit },
     ]);
 
     const cost = Math.ceil((raw.tasks?.[0]?.cost ?? 0) * 100);
     await logUsage({ userId, auditId, vendor: "dataforseo", endpoint: "ranked_keywords", costCents: cost });
 
-    const items = raw.tasks?.[0]?.result ?? [];
-    return items.map((item) => ({
-      keyword: item.keyword ?? "",
-      volume: item.keyword_info?.search_volume ?? 0,
-      difficulty: item.keyword_difficulty ?? 0,
-      cpc: item.keyword_info?.cpc ?? 0,
-      intent: item.keyword_info?.competition_level ?? null,
-      topUrl: item.ranked_serp_element?.serp_item?.relative_url ?? null,
-    }));
+    const items = raw.tasks?.[0]?.result?.[0]?.items ?? [];
+    return items.map((item) => {
+      const kd = item.keyword_data ?? {};
+      const serp = item.ranked_serp_element?.serp_item;
+      return {
+        keyword: kd.keyword ?? "",
+        volume: kd.keyword_info?.search_volume ?? 0,
+        difficulty: kd.keyword_properties?.keyword_difficulty ?? 0,
+        cpc: kd.keyword_info?.cpc ?? 0,
+        intent: kd.search_intent_info?.main_intent ?? null,
+        topUrl: serp?.relative_url ?? null,
+        position: serp?.rank_absolute ?? null,
+      };
+    });
   });
 }

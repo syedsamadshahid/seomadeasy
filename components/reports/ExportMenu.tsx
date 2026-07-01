@@ -41,6 +41,9 @@ export function ExportMenu({ auditId, features }: Props) {
             <DropdownMenuItem onClick={() => downloadCsv("geo")}>
               Export GEO Data (CSV)
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => downloadCsv("content")}>
+              Export Content Fixes (CSV)
+            </DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>

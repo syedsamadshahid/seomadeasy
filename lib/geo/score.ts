@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 export const SCORING_VERSION = "v1";
 
 // Per-run breakdown: mention=30, citation=40, prominence=20 (scaled 0–10), sentiment=10
-function scoreRun(run: {
+export function scoreRun(run: {
   mentioned: boolean;
   cited: boolean;
   prominence: number | null;

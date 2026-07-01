@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/dev-user";
 import { assembleResults } from "@/lib/audit/create";
 import { planFeatures } from "@/lib/plan/features";
 import { AuditReportPdf } from "@/lib/pdf/AuditReportPdf";
+import { getPayload } from "@/lib/audit/report-types";
 
 export async function GET(
   _req: Request,
@@ -28,6 +29,27 @@ export async function GET(
   const geoResult = audit.results.find((r) => r.category === "geo");
   const geoScore = geoResult?.score ?? null;
 
+  const authority = getPayload(audit.results, "authority");
+  const perf = getPayload(audit.results, "perf");
+  const content = getPayload(audit.results, "content");
+
+  const backlinks = authority
+    ? {
+        totalBacklinks: authority.backlinks.totalBacklinks,
+        referringDomains: authority.backlinks.referringDomains,
+        rank: authority.domainRank.rank,
+      }
+    : null;
+
+  const perfPages = (perf?.pages ?? [])
+    .filter((p) => p.lcp !== null || p.cls !== null || p.inp !== null)
+    .slice(0, 5)
+    .map((p) => ({ url: p.url, lcp: p.lcp, cls: p.cls, inp: p.inp }));
+
+  const fixes = (content?.fixList ?? [])
+    .slice(0, 8)
+    .map((f) => ({ category: f.category, impact: f.impact, issue: f.issue }));
+
   const stream = await renderToStream(
     AuditReportPdf({
       domain: project?.domain ?? "Unknown",
@@ -36,6 +58,9 @@ export async function GET(
       results: audit.results,
       keywords: audit.keywords,
       geoRuns: audit.geoRuns,
+      backlinks,
+      perfPages,
+      fixes,
       brandLogoUrl: features.canWhiteLabel ? project?.brandLogoUrl : null,
       brandColor: features.canCustomColor ? project?.brandColor : null,
       finishedAt: audit.finishedAt,

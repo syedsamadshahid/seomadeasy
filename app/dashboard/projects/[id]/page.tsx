@@ -12,6 +12,7 @@ import { EngineBreakdownChart } from "@/components/charts/EngineBreakdownChart";
 import { CompetitorFrequencyChart } from "@/components/charts/CompetitorFrequencyChart";
 import { BrandingForm } from "@/components/reports/BrandingForm";
 import { ScheduleForm } from "@/components/reports/ScheduleForm";
+import { CompetitorsManager } from "@/components/dashboard/CompetitorsManager";
 import {
   Table,
   TableBody,
@@ -46,6 +47,10 @@ export default async function ProjectDetailPage({
         },
       },
       scheduledReports: { take: 1 },
+      competitors: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, domain: true },
+      },
     },
   });
 
@@ -82,6 +87,18 @@ export default async function ProjectDetailPage({
           )}
         </section>
       )}
+
+      <Separator />
+
+      {/* Competitors */}
+      <section>
+        <h2 className="mb-4 text-lg font-semibold">Competitors</h2>
+        <CompetitorsManager
+          projectId={projectId}
+          initial={project.competitors}
+          maxCompetitors={features.maxCompetitors}
+        />
+      </section>
 
       <Separator />
 

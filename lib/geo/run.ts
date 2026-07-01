@@ -16,6 +16,9 @@ export interface RunGeoParams {
   plan: Plan;
   userId: string;
   keywords: string[];
+  // When provided (comparison audits), reuse this shared prompt set instead of
+  // generating new prompts — keeps the head-to-head apples-to-apples.
+  prompts?: string[];
 }
 
 export interface RunGeoResult {
@@ -28,8 +31,12 @@ export async function runGeoForAudit({
   plan,
   userId,
   keywords,
+  prompts: sharedPrompts,
 }: RunGeoParams): Promise<RunGeoResult> {
-  const prompts = await generateGeoPrompts(domain, keywords, plan, userId, auditId);
+  const prompts =
+    sharedPrompts && sharedPrompts.length > 0
+      ? sharedPrompts
+      : await generateGeoPrompts(domain, keywords, plan, userId, auditId);
 
   const engines = enginesForPlan(plan);
 

@@ -16,11 +16,13 @@ export function SignOutButton() {
       const { isFirebaseConfiguredClient } = await import("@/lib/auth/firebase-client");
       if (isFirebaseConfiguredClient()) {
         await signOut(getClientAuth());
+        router.push("/login");
+      } else {
+        router.push("/");
       }
-      router.push("/login");
       router.refresh();
     } catch {
-      router.push("/login");
+      router.push("/");
       router.refresh();
     } finally {
       setIsLoading(false);

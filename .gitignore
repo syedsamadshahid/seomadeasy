@@ -34,6 +34,10 @@ yarn-error.log*
 .env*
 !.env.example
 
+# firebase service account credentials (full server credential — never commit)
+*firebase-adminsdk*.json
+serviceAccount*.json
+
 # vercel
 .vercel
 

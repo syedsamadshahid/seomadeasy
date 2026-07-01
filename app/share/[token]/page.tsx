@@ -26,6 +26,7 @@ const PUBLIC_FEATURES: PlanFeatures = {
   aiPromptsPerAudit: 0,
   contentRecModel: "gemini-flash",
   canCompetitorTracking: false,
+  maxCompetitors: 0,
 };
 
 export default async function SharePage({

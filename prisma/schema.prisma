@@ -56,6 +56,13 @@ enum ReportCadence {
   monthly
 }
 
+enum ComparisonStatus {
+  queued
+  running
+  done
+  failed
+}
+
 // ── Models ─────────────────────────────────────────────────────
 
 model User {
@@ -92,9 +99,42 @@ model Project {
   audits            Audit[]
   scheduledReports  ScheduledReport[]
   trackedKeywords   TrackedKeyword[]
+  competitors       Competitor[]
+  comparisonGroups  ComparisonGroup[]
 
   @@unique([userId, domain])
   @@index([userId])
+}
+
+// Competitor domains saved per project; used as defaults for comparison audits.
+model Competitor {
+  id        String   @id @default(cuid())
+  projectId String
+  domain    String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, domain])
+  @@index([projectId])
+}
+
+// One head-to-head comparison run: the user's own audit + one audit per competitor.
+// All member audits share `sharedPrompts` so the GEO comparison is apples-to-apples.
+model ComparisonGroup {
+  id             String           @id @default(cuid())
+  projectId      String
+  primaryAuditId String?
+  sharedPrompts  Json?
+  status         ComparisonStatus @default(queued)
+  resultPayload  Json?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  audits  Audit[]
+
+  @@index([projectId])
 }
 
 model GoogleConnection {
@@ -123,16 +163,24 @@ model Audit {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  project     Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  results     AuditResult[]
-  pages       Page[]
-  keywords    Keyword[]
-  geoRuns     GeoRun[]
-  usageEvents UsageEvent[]
-  shareLinks  ShareLink[]
+  // Comparison support: subjectDomain overrides the project's own domain for
+  // competitor audits (null = audit the project's own domain). comparisonGroupId
+  // links the primary audit and its competitor audits into one head-to-head set.
+  subjectDomain     String?
+  comparisonGroupId String?
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  comparisonGroup ComparisonGroup? @relation(fields: [comparisonGroupId], references: [id], onDelete: SetNull)
+  results         AuditResult[]
+  pages           Page[]
+  keywords        Keyword[]
+  geoRuns         GeoRun[]
+  usageEvents     UsageEvent[]
+  shareLinks      ShareLink[]
 
   @@index([projectId])
   @@index([status])
+  @@index([comparisonGroupId])
 }
 
 model AuditResult {

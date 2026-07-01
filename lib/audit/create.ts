@@ -21,6 +21,7 @@ export async function assembleResults(auditId: string, userId: string) {
   const audit = await prisma.audit.findFirst({
     where: { id: auditId, project: { userId } },
     include: {
+      project: { select: { domain: true } },
       results: true,
       pages: { orderBy: { estTraffic: "desc" } },
       keywords: { orderBy: { volume: "desc" }, take: 100 },
@@ -37,6 +38,7 @@ export async function assembleResults(auditId: string, userId: string) {
     costCents: audit.costCents,
     startedAt: audit.startedAt,
     finishedAt: audit.finishedAt,
+    domain: audit.project.domain,
     results: audit.results.map((r) => ({
       category: r.category,
       score: r.score,

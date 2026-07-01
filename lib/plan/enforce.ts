@@ -53,6 +53,7 @@ export async function assertCanAddWebsite(
 export async function assertCanRunAudit(
   userId: string,
   plan: Plan,
+  count = 1,
 ): Promise<void> {
   const { monthlyAuditLimit } = planFeatures(plan);
   if (monthlyAuditLimit === null) return; // unlimited
@@ -61,7 +62,7 @@ export async function assertCanRunAudit(
   const TTL = 33 * 24 * 3600; // outlives any calendar month
 
   // Seed from DB on cold start (Redis flush, first request of month, etc.).
-  // SET NX is atomic — only one concurrent caller wins; the rest proceed to INCR.
+  // SET NX is atomic — only one concurrent caller wins; the rest proceed to INCRBY.
   if (!(await redis.exists(key))) {
     const dbCount = await prisma.audit.count({
       where: { project: { userId }, createdAt: { gte: startOfMonth() } },
@@ -69,16 +70,18 @@ export async function assertCanRunAudit(
     await redis.set(key, dbCount, { ex: TTL, nx: true });
   }
 
-  // Atomic increment — eliminates the TOCTOU race between concurrent requests.
-  const count = await redis.incr(key);
-  if (count === 1) await redis.expire(key, TTL); // set TTL if incr created the key
+  // Atomic reserve of `count` audit slots — eliminates the TOCTOU race.
+  const newCount = await redis.incrby(key, count);
+  if (newCount === count) await redis.expire(key, TTL); // set TTL if incrby created the key
 
-  if (count > monthlyAuditLimit) {
-    await redis.decr(key); // roll back so limit remains accurate
-    throw new PlanLimitError(
-      `You've used all ${monthlyAuditLimit} free audit${monthlyAuditLimit === 1 ? "" : "s"} this month. Upgrade to Pro for unlimited audits.`,
-      "audit",
-    );
+  if (newCount > monthlyAuditLimit) {
+    await redis.decrby(key, count); // roll back so limit remains accurate
+    const remaining = Math.max(0, monthlyAuditLimit - (newCount - count));
+    const suffix =
+      count > 1
+        ? `This comparison needs ${count} audits but you have ${remaining} left this month.`
+        : `You've used all ${monthlyAuditLimit} free audit${monthlyAuditLimit === 1 ? "" : "s"} this month.`;
+    throw new PlanLimitError(`${suffix} Upgrade to Pro for unlimited audits.`, "audit");
   }
 }
 

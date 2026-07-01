@@ -4,7 +4,7 @@ import { inngest, auditRequested } from "@/inngest/client";
 import { prisma } from "@/lib/db";
 import { rankedPages, onPage, backlinks, domainRank, keywordData } from "@/lib/clients/dataforseo";
 import { checkBrokenLinks } from "@/lib/audit/links";
-import { fetchPageSpeed } from "@/lib/clients/pagespeed";
+import { fetchPageSpeed, type PageSpeedResult } from "@/lib/clients/pagespeed";
 import { assertUnderCeiling, pageCapForPlan } from "@/lib/audit/cost";
 import { HttpError } from "@/lib/clients/http";
 import { runGeoForAudit } from "@/lib/geo/run";
@@ -33,7 +33,8 @@ export const runAudit = inngest.createFunction(
     });
 
     const userId = audit.project.user.id;
-    const domain = audit.project.domain;
+    // Competitor audits measure subjectDomain; the user's own audit measures the project domain.
+    const domain = audit.subjectDomain ?? audit.project.domain;
     const plan = audit.project.user.plan;
     const pageCap = pageCapForPlan(plan);
 
@@ -101,26 +102,46 @@ export const runAudit = inngest.createFunction(
       });
 
       // ── Step 3: Performance (PageSpeed) ───────────────────────────────────
+      // Performance is best-effort: Google PSI is aggressively rate-limited and
+      // routinely 429s or fails on individual URLs. A perf failure must NOT abort
+      // the whole audit (which would also skip GEO — the core feature). Degrade to
+      // a null score and keep every other category running.
       await step.run("perf", async () => {
         await assertUnderCeiling(auditId);
         const urls = pages.slice(0, 5).map((p) => p.url);
-        const results = await Promise.all(
+        const settled = await Promise.allSettled(
           urls.map((url) => fetchPageSpeed(url, userId, auditId)),
         );
 
-        await prisma.$transaction(
-          results.map((r) =>
-            prisma.page.updateMany({
-              where: { auditId, url: r.url },
-              data: { perf: toJson(r) },
-            }),
-          ),
-        );
+        const results = settled
+          .filter(
+            (r): r is PromiseFulfilledResult<PageSpeedResult> =>
+              r.status === "fulfilled",
+          )
+          .map((r) => r.value);
+        const failures = settled.length - results.length;
 
-        const avgLcp =
-          results.reduce((s, r) => s + (r.lcp ?? 0), 0) / (results.length || 1);
-        const score = avgLcp < 2500 ? 90 : avgLcp < 4000 ? 60 : 30;
-        const payload = toJson({ pages: results });
+        if (results.length > 0) {
+          await prisma.$transaction(
+            results.map((r) =>
+              prisma.page.updateMany({
+                where: { auditId, url: r.url },
+                data: { perf: toJson(r) },
+              }),
+            ),
+          );
+        }
+
+        // Score only from URLs that actually returned an LCP; null when none did.
+        const lcpValues = results
+          .map((r) => r.lcp)
+          .filter((v): v is number => v != null);
+        const avgLcp = lcpValues.length
+          ? lcpValues.reduce((s, v) => s + v, 0) / lcpValues.length
+          : null;
+        const score =
+          avgLcp == null ? null : avgLcp < 2500 ? 90 : avgLcp < 4000 ? 60 : 30;
+        const payload = toJson({ pages: results, failures });
 
         await prisma.auditResult.upsert({
           where: { auditId_category: { auditId, category: "perf" } },
@@ -154,7 +175,8 @@ export const runAudit = inngest.createFunction(
           domainRank(domain, userId, auditId),
         ]);
 
-        const score = Math.min(100, Math.round((dr.rank / 1_000_000) * 100));
+        // DataForSEO domain rank is 0–1000; scale to a 0–100 authority score.
+        const score = Math.min(100, Math.round(dr.rank / 10));
         const payload = toJson({ backlinks: bl, domainRank: dr });
 
         await prisma.auditResult.upsert({
@@ -180,6 +202,7 @@ export const runAudit = inngest.createFunction(
                 difficulty: k.difficulty,
                 cpc: k.cpc,
                 intent: k.intent,
+                position: k.position,
               },
             }),
           ),
@@ -205,7 +228,28 @@ export const runAudit = inngest.createFunction(
           select: { term: true },
           take: 20,
         });
-        await runGeoForAudit({ auditId, domain, plan, userId, keywords: kws.map((k) => k.term) });
+
+        // Comparison audits reuse the group's shared prompt set so the head-to-head
+        // is apples-to-apples across all domains.
+        let sharedPrompts: string[] | undefined;
+        if (audit.comparisonGroupId) {
+          const group = await prisma.comparisonGroup.findUnique({
+            where: { id: audit.comparisonGroupId },
+            select: { sharedPrompts: true },
+          });
+          if (Array.isArray(group?.sharedPrompts)) {
+            sharedPrompts = group.sharedPrompts as string[];
+          }
+        }
+
+        await runGeoForAudit({
+          auditId,
+          domain,
+          plan,
+          userId,
+          keywords: kws.map((k) => k.term),
+          prompts: sharedPrompts,
+        });
       });
 
       // ── Step 10: Content generation ────────────────────────────────────────

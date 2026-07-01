@@ -24,7 +24,8 @@ export type PlanFeatures = {
   contentRecModel: string;          // free="gemini-flash", pro="gemini-pro", agency="claude-sonnet"
 
   // ── Competitor tracking ─────────────────────────────────
-  canCompetitorTracking: boolean;   // agency only
+  canCompetitorTracking: boolean;   // derived: maxCompetitors > 0
+  maxCompetitors: number;           // free=1, pro=3, agency=10
 };
 
 export function planFeatures(plan: Plan): PlanFeatures {
@@ -50,6 +51,7 @@ export function planFeatures(plan: Plan): PlanFeatures {
         aiPromptsPerAudit: 20,
         contentRecModel: "claude-sonnet",
         canCompetitorTracking: true,
+        maxCompetitors: 10,
       };
     case "pro":
       return {
@@ -71,7 +73,8 @@ export function planFeatures(plan: Plan): PlanFeatures {
         aiEngines: 3,
         aiPromptsPerAudit: 10,
         contentRecModel: "gemini-pro",
-        canCompetitorTracking: false,
+        canCompetitorTracking: true,
+        maxCompetitors: 3,
       };
     default: // "free"
       return {
@@ -93,7 +96,8 @@ export function planFeatures(plan: Plan): PlanFeatures {
         aiEngines: 1,
         aiPromptsPerAudit: 3,
         contentRecModel: "gemini-flash",
-        canCompetitorTracking: false,
+        canCompetitorTracking: true,
+        maxCompetitors: 1,
       };
   }
 }

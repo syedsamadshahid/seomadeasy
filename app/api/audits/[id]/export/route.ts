@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/dev-user";
 import { assembleResults } from "@/lib/audit/create";
 import { planFeatures } from "@/lib/plan/features";
-import { keywordsCsv, geoRunsCsv, issuesCsv } from "@/lib/export/csv";
+import { keywordsCsv, geoRunsCsv, issuesCsv, fixesCsv } from "@/lib/export/csv";
+import { getPayload } from "@/lib/audit/report-types";
 
 export async function GET(
   req: Request,
@@ -36,6 +37,10 @@ export async function GET(
     }));
     csv = issuesCsv(pages);
     filename = `issues-${auditId}.csv`;
+  } else if (type === "content") {
+    const content = getPayload(audit.results, "content");
+    csv = fixesCsv(content?.fixList ?? []);
+    filename = `content-fixes-${auditId}.csv`;
   } else {
     csv = keywordsCsv(audit.keywords);
     filename = `keywords-${auditId}.csv`;

@@ -33,7 +33,10 @@ const styles = StyleSheet.create({
 
 type Category = { category: string; score: number | null; };
 type Keyword = { term: string; volume: number | null; position: number | null; };
-type GeoRun = { engine: string; mentioned: boolean; cited: boolean; sentiment: string | null; };
+type GeoRun = { engine: string; mentioned: boolean; cited: boolean; sentiment: string | null; prominence?: number | null; };
+type BacklinkSummary = { totalBacklinks: number; referringDomains: number; rank: number } | null;
+type PerfPage = { url: string; lcp: number | null; cls: number | null; inp: number | null };
+type FixItem = { category: string; impact: string; issue: string };
 
 type Props = {
   domain: string;
@@ -42,13 +45,22 @@ type Props = {
   results: Category[];
   keywords: Keyword[];
   geoRuns: GeoRun[];
+  backlinks?: BacklinkSummary;
+  perfPages?: PerfPage[];
+  fixes?: FixItem[];
   brandLogoUrl?: string | null;
   brandColor?: string | null;
   finishedAt?: Date | null;
 };
 
+function ms(value: number | null): string {
+  if (value === null) return "–";
+  return value >= 1000 ? `${(value / 1000).toFixed(2)}s` : `${Math.round(value)}ms`;
+}
+
 export function AuditReportPdf({
   domain, overallScore, geoScore, results, keywords, geoRuns,
+  backlinks, perfPages = [], fixes = [],
   brandLogoUrl, brandColor, finishedAt,
 }: Props) {
   const accent = brandColor ?? "#2563eb";
@@ -90,6 +102,48 @@ export function AuditReportPdf({
           ))}
         </View>
 
+        {backlinks && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Backlinks & Authority</Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Total backlinks</Text>
+              <Text>{backlinks.totalBacklinks.toLocaleString()}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Referring domains</Text>
+              <Text>{backlinks.referringDomains.toLocaleString()}</Text>
+            </View>
+            <View style={styles.row}>
+              <Text style={styles.label}>Domain rank</Text>
+              <Text>{backlinks.rank.toLocaleString()}</Text>
+            </View>
+          </View>
+        )}
+
+        {perfPages.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Performance — Core Web Vitals</Text>
+            {perfPages.map((p, i) => (
+              <View key={i} style={styles.row}>
+                <Text style={styles.label}>{p.url}</Text>
+                <Text>LCP {ms(p.lcp)} · INP {ms(p.inp)} · CLS {p.cls != null ? p.cls.toFixed(3) : "–"}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {fixes.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Priority Fixes</Text>
+            {fixes.map((f, i) => (
+              <View key={i} style={styles.row}>
+                <Text style={styles.label}>[{f.impact}] {f.category}</Text>
+                <Text>{f.issue}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {keywords.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Top Keywords</Text>
@@ -110,6 +164,7 @@ export function AuditReportPdf({
                 <Text style={styles.label}>{g.engine}</Text>
                 <Text>
                   {g.mentioned ? "Mentioned" : "Not mentioned"} · {g.cited ? "Cited" : "Not cited"}
+                  {g.prominence != null ? ` · prom ${g.prominence}/10` : ""}
                   {g.sentiment ? ` · ${g.sentiment}` : ""}
                 </Text>
               </View>
